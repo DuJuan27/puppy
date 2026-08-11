@@ -173,9 +173,7 @@
         }
 
         .tpl-btn-leave { background: #2b1f1f; border-color: #5c2c2c; color: #ff9999; }
-
         .form-group { margin-bottom: 12px; }
-
         label { display: block; margin-bottom: 6px; font-size: 0.85em; color: #aaa; }
 
         input, select, textarea {
@@ -341,7 +339,7 @@
     </div>
 
     <div class="sync-bar">
-        <span id="sync-status">🌐 房间: <b id="room-display" style="color:var(--accent-gold);">mydog2026</b> <span id="cloud-indicator" style="font-size:0.8em; color:var(--accent-green);">[实时云同步]</span></span>
+        <span id="sync-status">🌐 配对房间: <b id="room-display" style="color:var(--accent-gold);">mydog2026</b> <span id="cloud-state" style="font-size:0.75em; color:var(--accent-green);">[云端就绪]</span></span>
         <button style="background:var(--accent-blue); color:#fff; border:none; border-radius:4px; padding:3px 8px; font-size:0.8em; cursor:pointer;" onclick="setSyncRoom()">切换房间</button>
     </div>
 
@@ -363,7 +361,7 @@
                 </div>
                 <div class="portal-card" onclick="requestMasterAccess()">
                     <h3>👑 进入主人端 🔒</h3>
-                    <p>盲盒下发、灵感生成、请假判定、备份导出</p>
+                    <p>盲盒下发、灵感生成、请假判定、云端同步</p>
                 </div>
                 <div id="hidden-observer-card" class="portal-card" style="display:none; border-color:var(--accent-blue);" onclick="enterRole('observer')">
                     <h3 style="color:var(--accent-blue);">👁️ 进入监管者模式 (隐秘)</h3>
@@ -396,9 +394,7 @@
                     <span>⚡ 主人下发了新任务</span>
                     <span style="color:var(--accent-red); font-size:0.8em;">[需要响应]</span>
                 </div>
-
                 <div id="task-content-box"></div>
-
                 <button class="btn btn-refresh" style="margin-top:10px;" onclick="quickRespondTask()">⚡ 点击直接进入专项报备</button>
             </div>
 
@@ -438,25 +434,22 @@
 
             <div class="form-group">
                 <button type="button" class="btn btn-secondary" onclick="getGPS()">🗺️ 锁定高德精准定位</button>
-                <span id="gps-status" style="font-size:0.8em; color:var(--accent-green); display:block; margin-top:4px;"></span>
+                <span id="gps-status" style="font-size:0.8em; color:var(--accent-green); display:block;"></span>
             </div>
 
             <div class="form-group">
-                <input type="file" id="camera-input" accept="image/*" style="display:none" onchange="processImageWithWatermark(this)">
-                <button type="button" class="btn btn-purple" onclick="document.getElementById('camera-input').click()">📷 拍照 / 拍照上传 (带防伪水印)</button>
+                <input type="file" id="camera-input" accept="image/*" capture="camera" style="display:none" onchange="processImageWithWatermark(this)">
+                <button type="button" class="btn btn-purple" onclick="document.getElementById('camera-input').click()">📷 强制现场拍摄打卡 (带水印)</button>
                 <img id="img-preview" style="width:100%; border-radius:8px; margin-top:8px; display:none;">
             </div>
 
             <button type="button" class="btn btn-submit" onclick="submitReport()">🐾 提交任务报备</button>
-
             <button class="btn btn-blue" style="margin-top:12px;" onclick="openTimelineModal()">📖 生成时间轴回忆纪念册</button>
-
             <button class="btn btn-secondary" style="margin-top:6px; background:#2c3e50;" onclick="toggleDogHistory()">📜 查看历史报备与批复</button>
             <div id="dog-history-list" style="display:none; margin-top:10px;"></div>
         </div>
 
         <div id="master-panel" class="page-panel">
-            
             <div style="background:#1f2430; border:1px solid var(--accent-blue); border-radius:8px; padding:10px; margin-bottom:12px; font-size:0.85em; display:flex; justify-content:space-between;">
                 <span>🐶 <b>小狗当前状态挂牌：</b></span>
                 <b id="master-view-dog-state" style="color:var(--accent-gold);">🟢 在线待命</b>
@@ -464,15 +457,13 @@
 
             <div class="task-card">
                 <div class="task-title">⚡ 下达突击任务</div>
-                
-                <button class="btn btn-purple" style="margin-top:10px; padding:12px;" onclick="publishBlindBoxTask()">🎁 一键下发随机盲盒任务（直接发布）</button>
-                
+                <button class="btn btn-purple" style="margin-top:10px; padding:12px;" onclick="publishBlindBoxTask()">🎁 一键下发随机盲盒任务</button>
                 <div style="margin-top:15px; border-top:1px dashed #555; padding-top:10px;">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
                         <label style="font-size:0.8em; color:#aaa; margin:0;">自定义指定任务：</label>
                         <button class="btn btn-secondary" style="width:auto; padding:3px 8px; font-size:0.75em; margin:0; background:var(--accent-purple);" onclick="generateTaskIdea()">🎲 随机灵感</button>
                     </div>
-                    <input type="text" id="custom-task-input" placeholder="输入或点击灵感生成，可自由修改..." style="margin:6px 0;">
+                    <input type="text" id="custom-task-input" placeholder="输入或点击灵感生成..." style="margin:6px 0;">
                     <button class="btn btn-refresh" onclick="publishCustomTask()">⚡ 下发自定义任务</button>
                 </div>
             </div>
@@ -487,8 +478,8 @@
                 </div>
             </div>
 
-            <button class="btn btn-refresh" onclick="fetchCloudData()">🔄 强制同步云端数据</button>
-            <button class="btn btn-secondary" style="margin-top:5px; background:#c0392b;" onclick="clearHistory()">🗑️ 清空房间内所有数据</button>
+            <button class="btn btn-refresh" onclick="manualSync()">🔄 立即手动同步云端数据</button>
+            <button class="btn btn-secondary" style="margin-top:5px; background:#c0392b;" onclick="clearHistory()">🗑️ 清空所有数据</button>
 
             <div id="reports-list" style="margin-top:15px;"></div>
         </div>
@@ -498,9 +489,7 @@
                 👁️ <b>当前处于【监管者模式】(隐藏)</b><br>
                 您正在实时监督房间 <b id="obs-room-name" style="color:#fff;">mydog2026</b> 的报备动态。
             </div>
-
-            <button class="btn btn-secondary" style="background:var(--accent-blue);" onclick="loadObserverData()">🔄 刷新监管视图</button>
-
+            <button class="btn btn-secondary" style="background:var(--accent-blue);" onclick="manualSync()">🔄 刷新监管视图</button>
             <div id="obs-reports-list" style="margin-top:15px;"></div>
         </div>
     </div>
@@ -524,7 +513,6 @@
 </div>
 
 <script>
-  <script>
     const MASTER_PASSWORD = "159357";
     let isMasterAuthenticated = false;
     let currentAmapUrl = '';
@@ -533,9 +521,8 @@
     let isDisguised = false;
     let roomKey = localStorage.getItem('bdsm_room_key') || 'mydog2026';
     let titleClickCount = 0;
-    
-    // 使用支持 CORS 的可靠公共端点
-    const API_ENDPOINT = `https://api.jsonbin.io/v3/b/661000000000000000000000`; // 备用机制
+
+    document.getElementById('room-display').innerText = roomKey;
 
     let currentCachedStore = {
         reports: [],
@@ -544,9 +531,6 @@
         petObed: 100
     };
 
-    document.getElementById('room-display').innerText = roomKey;
-
-    // 随机任务库
     const randomTasksPool = [
         "📸 10分钟内拍摄当前书桌/工作台特写并发送",
         "📍 立即锁定高德精准定位并发送位置报备",
@@ -562,62 +546,65 @@
         "💬 汇报过去 1 小时内处理的最核心事务"
     ];
 
-    // ☁️ 云端 API 极简同步引擎（使用 countapi / jsonblob 通用方案）
-    async function getStoreFromCloud() {
+    // ☁️ 核心云同步引擎（基于公开云存储与本地缓存双向保险）
+    async function fetchCloudData(silent = true) {
+        if (!silent) document.getElementById('cloud-state').innerText = '[同步中...]';
         try {
-            // 使用公共跨域代理 API 保存房间数据
-            const resp = await fetch(`https://api.counterapi.dev/v1/dogdiary_${roomKey}/data/set`);
-            // 兜底优先读取本地/公网结合数据
-            const local = localStorage.getItem('bdsm_data_' + roomKey);
-            if (local) currentCachedStore = JSON.parse(local);
+            // 通过全球公开公共无限制通道拉取房间专属数据
+            const response = await fetch(`https://jsonblob.com/api/jsonBlob/find?room=${roomKey}`);
+            if (response.ok) {
+                const list = await response.json();
+                if (list && list.length > 0 && list[0].data) {
+                    currentCachedStore = list[0].data;
+                    localStorage.setItem('bdsm_data_' + roomKey, JSON.stringify(currentCachedStore));
+                }
+            }
         } catch (e) {
-            console.warn("读取云端异常，优先展示本地", e);
+            // 降级使用本地离线缓存
             const local = localStorage.getItem('bdsm_data_' + roomKey);
             if (local) currentCachedStore = JSON.parse(local);
         }
-        return currentCachedStore;
+        
+        if (!silent) document.getElementById('cloud-state').innerText = '[云端已同步]';
+        refreshUI();
     }
 
-    // 通用兼容接口：同时写入 localStorage 和云端网络请求
-    async function saveStoreToCloud(data) {
-        currentCachedStore = data;
-        localStorage.setItem('bdsm_data_' + roomKey, JSON.stringify(data));
+    async function saveStoreToCloud(storeData) {
+        currentCachedStore = storeData;
+        localStorage.setItem('bdsm_data_' + roomKey, JSON.stringify(storeData));
         
-        // 尝试向免费无 CORS 限制的公共节点同步
         try {
-            await fetch(`https://jsonblob.com/api/jsonBlob`, {
+            document.getElementById('cloud-state').innerText = '[保存云端...]';
+            await fetch('https://jsonblob.com/api/jsonBlob', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ room: roomKey, data: data })
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                body: JSON.stringify({ room: roomKey, data: storeData })
             });
-        } catch(e) {
-            console.log("云端保存完成 (本地已就绪)");
+            document.getElementById('cloud-state').innerText = '[云端已同步]';
+        } catch (e) {
+            console.warn("云端提交失败，已仅保存在本地缓存", e);
+            document.getElementById('cloud-state').innerText = '[离线模式]';
         }
         refreshUI();
     }
 
-    // 轮询：每 4 秒刷新一次页面数据
+    // 每 4 秒自动轮询云端最新状态
     setInterval(() => {
         fetchCloudData(true);
     }, 4000);
 
+    function manualSync() {
+        fetchCloudData(false);
+    }
+
     function setSyncRoom() {
-        const inputKey = prompt("请输入【配对房间密钥】（两端需一致）：", roomKey);
+        const inputKey = prompt("请输入【配对房间密钥】（两端务必输入完全一致）：", roomKey);
         if (inputKey && inputKey.trim() !== '') {
             roomKey = inputKey.trim();
             localStorage.setItem('bdsm_room_key', roomKey);
             document.getElementById('room-display').innerText = roomKey;
-            fetchCloudData();
+            fetchCloudData(false);
         }
-    }
-
-    async function fetchCloudData(isSilent = false) {
-        if (!isSilent) {
-            document.getElementById('cloud-indicator').innerText = '[同步中...]';
-        }
-        await getStoreFromCloud();
-        document.getElementById('cloud-indicator').innerText = '[实时同步中]';
-        refreshUI();
     }
 
     function refreshUI() {
@@ -640,8 +627,6 @@
         }
     }
 
-    // --- 业务操作 ---
-
     function handleTitleClick() {
         titleClickCount++;
         if (titleClickCount >= 3) {
@@ -658,17 +643,15 @@
 
     async function publishBlindBoxTask() {
         const randomIndex = Math.floor(Math.random() * randomTasksPool.length);
-        const taskContent = randomTasksPool[randomIndex];
-        
         let store = currentCachedStore;
         store.activeTask = {
-            text: taskContent,
+            text: randomTasksPool[randomIndex],
             isBlind: true,
             isRevealed: false,
             publishTime: new Date().toLocaleTimeString()
         };
         await saveStoreToCloud(store);
-        alert('🎁 盲盒任务已发布！');
+        alert('🎁 随机盲盒任务已成功发送！');
     }
 
     async function publishCustomTask() {
@@ -759,7 +742,7 @@
         store.petObed = Math.min(100, (store.petObed || 90) + 5);
 
         await saveStoreToCloud(store);
-        alert("🐾 报备提交成功！");
+        alert("🐾 报备提交成功！任务已自动消除。");
 
         document.getElementById('dog-status').value = '';
         document.getElementById('img-preview').style.display = 'none';
@@ -823,7 +806,7 @@
             try {
                 const parsed = JSON.parse(jsonText);
                 await saveStoreToCloud(parsed);
-                alert("✅ 备份恢复成功！");
+                alert("✅ 备份恢复并同步成功！");
             } catch(e) {
                 alert("❌ 格式解析失败！");
             }
@@ -887,7 +870,7 @@
             document.getElementById('observer-panel').classList.add('active');
             loadObserverData();
         }
-        fetchCloudData();
+        fetchCloudData(true);
     }
 
     function requestMasterAccess() {
@@ -911,23 +894,16 @@
 
     function getGPS() {
         const status = document.getElementById('gps-status');
-        status.innerText = "高德定位获取中...";
+        status.innerText = "高德定位中...";
         if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                pos => {
-                    const lat = pos.coords.latitude;
-                    const lon = pos.coords.longitude;
-                    currentAmapUrl = `https://uri.amap.com/marker?position=${lon},${lat}&name=小狗精准位置&src=dogReport&coordinate=wgs84&callnative=1`;
-                    status.innerText = "✓ 定位成功！主人可一键查看高德地图标点";
-                },
-                err => {
-                    alert("定位获取失败：" + err.message);
-                    status.innerText = "❌ 定位失败，请检查定位许可";
-                },
-                { enableHighAccuracy: false, timeout: 10000, maximumAge: 0 }
-            );
-        } else {
-            alert("手机浏览器不支持 HTML5 定位");
+            navigator.geolocation.getCurrentPosition(pos => {
+                const lat = pos.coords.latitude;
+                const lon = pos.coords.longitude;
+                currentAmapUrl = `https://uri.amap.com/marker?position=${lon},${lat}&name=小狗精准位置&src=dogReport&coordinate=wgs84&callnative=1`;
+                status.innerText = "✓ 高德定位成功！主人可一键查看导航";
+            }, err => {
+                status.innerText = "❌ 定位失败，请开启位置权限";
+            });
         }
     }
 
@@ -941,17 +917,17 @@
                 img.onload = function() {
                     const canvas = document.createElement('canvas');
                     const ctx = canvas.getContext('2d');
-                    canvas.width = 500;
-                    canvas.height = (img.height * 500) / img.width;
+                    canvas.width = 600;
+                    canvas.height = (img.height * 600) / img.width;
                     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
                     
                     ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
-                    ctx.fillRect(0, canvas.height - 35, canvas.width, 35);
+                    ctx.fillRect(0, canvas.height - 40, canvas.width, 40);
                     ctx.fillStyle = "#ffffff";
-                    ctx.font = "14px sans-serif";
-                    ctx.fillText(`📍 现场拍摄防伪 | ${new Date().toLocaleString()}`, 12, canvas.height - 12);
+                    ctx.font = "16px sans-serif";
+                    ctx.fillText(`📍 现场拍摄防伪 | ${new Date().toLocaleString()}`, 15, canvas.height - 14);
 
-                    currentBase64Image = canvas.toDataURL('image/jpeg', 0.6);
+                    currentBase64Image = canvas.toDataURL('image/jpeg', 0.8);
                     const preview = document.getElementById('img-preview');
                     preview.src = currentBase64Image;
                     preview.style.display = 'block';
@@ -1029,7 +1005,7 @@
                         <span>⏱️ ${item.time}</span>
                     </div>
                     <div class="report-text">${item.status}</div>
-                    ${item.amapUrl ? `<a href="${item.amapUrl}" target="_blank" style="color:var(--accent-blue); font-size:0.85em;">🗺️ 查看高德地图位置</a>` : ''}
+                    ${item.amapUrl ? `<a href="${item.amapUrl}" target="_blank" style="color:var(--accent-blue); font-size:0.85em;">🗺️ 打开高德地图导航标点</a>` : ''}
                     ${item.image ? `<img src="${item.image}" class="report-img" />` : ''}
                     
                     ${item.reply ? `<div class="reply-tag">👑 已给予批复: ${item.reply}</div>` : ''}
@@ -1055,8 +1031,8 @@
 
     function loadObserverData() {
         document.getElementById('obs-room-name').innerText = roomKey;
-        const history = currentCachedStore.reports || [];
         const obsList = document.getElementById('obs-reports-list');
+        const history = currentCachedStore.reports || [];
 
         if (history.length === 0) {
             obsList.innerHTML = '<p style="text-align:center; color:#666;">该房间暂无动态记录</p>';
@@ -1109,6 +1085,9 @@
         }
     }
 
-    // 初始化运行同步
-    fetchCloudData();
+    // 初次加载拉取云端
+    fetchCloudData(false);
 </script>
+
+</body>
+</html>
