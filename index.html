@@ -308,8 +308,11 @@
     </div>
 
     <div class="sync-bar">
-        <span id="sync-status">🌐 配对房间: <b id="room-display" style="color:var(--accent-gold);">mydog2026</b> <span style="color:#888;">[连接中...]</span></span>
-        <button style="background:var(--accent-blue); color:#fff; border:none; border-radius:4px; padding:3px 8px; font-size:0.8em; cursor:pointer;" onclick="setSyncRoom()">切换房间</button>
+        <span id="sync-status" style="font-size:0.75em;">🌐 <b id="room-display" style="color:var(--accent-gold);">mydog2026</b> <span style="color:#888;">[连接中...]</span></span>
+        <div>
+            <button style="background:var(--accent-blue); color:#fff; border:none; border-radius:4px; padding:3px 6px; font-size:0.75em; cursor:pointer;" onclick="setSyncRoom()">换房</button>
+            <button style="background:var(--accent-purple); color:#fff; border:none; border-radius:4px; padding:3px 6px; font-size:0.75em; cursor:pointer; margin-left:2px;" onclick="requestNotificationPermission()">🔔 开启通知</button>
+        </div>
     </div>
 
     <div id="disguise-view" style="display:none; padding:20px;">
@@ -490,7 +493,7 @@
                 const topic = `dog_diary/room/${roomKey}`;
                 mqttClient.subscribe(topic, (err) => {
                     if (!err) {
-                        document.getElementById('sync-status').innerHTML = `🌐 配对房间: <b style="color:var(--accent-gold);">${roomKey}</b> <span style="color:var(--accent-green);">[⚡ 异地实时同步中]</span>`;
+                        document.getElementById('sync-status').innerHTML = `🌐 <b style="color:var(--accent-gold);">${roomKey}</b> <span style="color:var(--accent-green);">[⚡ 同步中]</span>`;
                     }
                 });
             });
@@ -498,6 +501,11 @@
             mqttClient.on('message', (topic, payload) => {
                 try {
                     const cloudData = JSON.parse(payload.toString());
+                    const oldStore = getStore();
+                    
+                    // 触发系统桌面通知检测
+                    checkAndNotify(oldStore, cloudData);
+
                     localStorage.setItem('bdsm_store_' + roomKey, JSON.stringify(cloudData));
                     refreshAllUI();
                     console.log('🔄 已自动同步异地最新数据');
@@ -511,6 +519,66 @@
             });
         } catch (e) {
             console.error('MQTT 初始化异常', e);
+        }
+    }
+
+    // ----------------- 系统桌面通知模块 -----------------
+    function requestNotificationPermission() {
+        if (!("Notification" in window)) {
+            alert("您的浏览器不支持系统通知功能");
+            return;
+        }
+        Notification.requestPermission().then(permission => {
+            if (permission === "granted") {
+                alert("✅ 系统通知权限已开启！有新消息时将自动弹出桌面提醒。");
+            } else {
+                alert("❌ 通知权限被拒绝，请在浏览器设置中允许通知。");
+            }
+        });
+    }
+
+    function showSystemNotification(title, body) {
+        if (Notification.permission === "granted") {
+            try {
+                new Notification(title, {
+                    body: body,
+                    icon: 'https://cdn-icons-png.flaticon.com/512/616/616408.png'
+                });
+            } catch (e) {
+                console.error("通知发送异常", e);
+            }
+        }
+    }
+
+    function checkAndNotify(oldStore, newStore) {
+        if (!oldStore) return;
+
+        let activePanel = document.querySelector('.page-panel.active');
+        let isMaster = activePanel && activePanel.id === 'master-panel';
+        let isDog = activePanel && activePanel.id === 'dog-panel';
+
+        // 主人端视角检测：小狗端提交了新报备
+        let oldReportsLen = (oldStore.reports || []).length;
+        let newReportsLen = (newStore.reports || []).length;
+        if (newReportsLen > oldReportsLen) {
+            showSystemNotification("🐾 收到新的小狗报备", "小狗端提交了新的日常报备，请及时查看并批复！");
+            return;
+        }
+
+        // 小狗端视角检测：主人回复了报备或下发了新任务
+        if (isDog) {
+            let oldRepliesCount = (oldStore.reports || []).filter(r => r.reply).length;
+            let newRepliesCount = (newStore.reports || []).filter(r => r.reply).length;
+            if (newRepliesCount > oldRepliesCount) {
+                showSystemNotification("👑 收到主人批复", "主人已经对您的报备进行了批复，快去查看！");
+                return;
+            }
+
+            if (!oldStore.activeTask && newStore.activeTask) {
+                showSystemNotification("⚡ 主人下发了新任务", newStore.activeTask.text);
+            } else if (oldStore.activeTask && newStore.activeTask && oldStore.activeTask.text !== newStore.activeTask.text) {
+                showSystemNotification("⚡ 主人下发了新任务", newStore.activeTask.text);
+            }
         }
     }
 
@@ -593,7 +661,6 @@
                 let remainSec = Math.ceil((30000 - elapsed) / 1000);
                 document.getElementById('reply-time-tag').innerText = `剩 ${remainSec} 秒自动关闭`;
                 
-                // 动态定时刷新倒计时
                 setTimeout(() => {
                     refreshAllUI();
                 }, 1000);
@@ -897,7 +964,7 @@
             store.reports[idx].reply = replyText;
             store.reports[idx].stamp = stampText || '【遵命执行】';
             store.reports[idx].replyTime = new Date().toLocaleTimeString();
-            store.reports[idx].replyTimestamp = Date.now(); // 记录批复时间戳供30秒倒计时使用
+            store.reports[idx].replyTimestamp = Date.now();
             saveStore(store);
             refreshAllUI();
         }
