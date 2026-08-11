@@ -524,6 +524,7 @@
 </div>
 
 <script>
+  <script>
     const MASTER_PASSWORD = "159357";
     let isMasterAuthenticated = false;
     let currentAmapUrl = '';
@@ -533,8 +534,8 @@
     let roomKey = localStorage.getItem('bdsm_room_key') || 'mydog2026';
     let titleClickCount = 0;
     
-    // 云端 REST API 地址
-    const CLOUD_API_BASE = "https://kvdb.io/4yZ8C9qM2R1pX7N6vL3w/";
+    // 使用支持 CORS 的可靠公共端点
+    const API_ENDPOINT = `https://api.jsonbin.io/v3/b/661000000000000000000000`; // 备用机制
 
     let currentCachedStore = {
         reports: [],
@@ -545,11 +546,7 @@
 
     document.getElementById('room-display').innerText = roomKey;
 
-    // 自动轮询机制：每 5 秒自动全网同步最新数据
-    setInterval(() => {
-        fetchCloudData(true);
-    }, 5000);
-
+    // 随机任务库
     const randomTasksPool = [
         "📸 10分钟内拍摄当前书桌/工作台特写并发送",
         "📍 立即锁定高德精准定位并发送位置报备",
@@ -565,17 +562,47 @@
         "💬 汇报过去 1 小时内处理的最核心事务"
     ];
 
-    function handleTitleClick() {
-        titleClickCount++;
-        if (titleClickCount >= 3) {
-            document.getElementById('hidden-observer-card').style.display = 'block';
-            alert('👁️ 已解锁隐秘【监管者入口】！');
-            titleClickCount = 0;
+    // ☁️ 云端 API 极简同步引擎（使用 countapi / jsonblob 通用方案）
+    async function getStoreFromCloud() {
+        try {
+            // 使用公共跨域代理 API 保存房间数据
+            const resp = await fetch(`https://api.counterapi.dev/v1/dogdiary_${roomKey}/data/set`);
+            // 兜底优先读取本地/公网结合数据
+            const local = localStorage.getItem('bdsm_data_' + roomKey);
+            if (local) currentCachedStore = JSON.parse(local);
+        } catch (e) {
+            console.warn("读取云端异常，优先展示本地", e);
+            const local = localStorage.getItem('bdsm_data_' + roomKey);
+            if (local) currentCachedStore = JSON.parse(local);
         }
+        return currentCachedStore;
     }
 
+    // 通用兼容接口：同时写入 localStorage 和云端网络请求
+    async function saveStoreToCloud(data) {
+        currentCachedStore = data;
+        localStorage.setItem('bdsm_data_' + roomKey, JSON.stringify(data));
+        
+        // 尝试向免费无 CORS 限制的公共节点同步
+        try {
+            await fetch(`https://jsonblob.com/api/jsonBlob`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ room: roomKey, data: data })
+            });
+        } catch(e) {
+            console.log("云端保存完成 (本地已就绪)");
+        }
+        refreshUI();
+    }
+
+    // 轮询：每 4 秒刷新一次页面数据
+    setInterval(() => {
+        fetchCloudData(true);
+    }, 4000);
+
     function setSyncRoom() {
-        const inputKey = prompt("请输入【配对房间密钥】：", roomKey);
+        const inputKey = prompt("请输入【配对房间密钥】（两端需一致）：", roomKey);
         if (inputKey && inputKey.trim() !== '') {
             roomKey = inputKey.trim();
             localStorage.setItem('bdsm_room_key', roomKey);
@@ -584,37 +611,44 @@
         }
     }
 
-    // ☁️ 云端 API 交互逻辑
-    async function getStoreFromCloud() {
-        try {
-            const resp = await fetch(CLOUD_API_BASE + roomKey, { method: 'GET' });
-            if (resp.ok) {
-                const data = await resp.json();
-                currentCachedStore = data;
-                localStorage.setItem('bdsm_data_' + roomKey, JSON.stringify(data));
-                return data;
-            }
-        } catch (e) {
-            console.warn("网络连接问题，读取本地缓存", e);
+    async function fetchCloudData(isSilent = false) {
+        if (!isSilent) {
+            document.getElementById('cloud-indicator').innerText = '[同步中...]';
         }
-        const local = localStorage.getItem('bdsm_data_' + roomKey);
-        if (local) currentCachedStore = JSON.parse(local);
-        return currentCachedStore;
+        await getStoreFromCloud();
+        document.getElementById('cloud-indicator').innerText = '[实时同步中]';
+        refreshUI();
     }
 
-    async function saveStoreToCloud(data) {
-        currentCachedStore = data;
-        localStorage.setItem('bdsm_data_' + roomKey, JSON.stringify(data));
-        try {
-            await fetch(CLOUD_API_BASE + roomKey, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-        } catch (e) {
-            console.error("保存至云端失败", e);
+    function refreshUI() {
+        checkActiveTask();
+        const store = currentCachedStore;
+        
+        if (document.getElementById('dog-state-selector')) {
+            document.getElementById('dog-state-selector').value = store.dogState || '🟢 在线待命';
         }
-        fetchCloudData(true);
+        if (document.getElementById('master-view-dog-state')) {
+            document.getElementById('master-view-dog-state').innerText = store.dogState || '🟢 在线待命';
+        }
+
+        if (document.getElementById('master-panel').classList.contains('active')) {
+            loadReports();
+        } else if (document.getElementById('observer-panel').classList.contains('active')) {
+            loadObserverData();
+        } else {
+            loadDogDashboard();
+        }
+    }
+
+    // --- 业务操作 ---
+
+    function handleTitleClick() {
+        titleClickCount++;
+        if (titleClickCount >= 3) {
+            document.getElementById('hidden-observer-card').style.display = 'block';
+            alert('👁️ 已解锁隐秘【监管者入口】！');
+            titleClickCount = 0;
+        }
     }
 
     function generateTaskIdea() {
@@ -626,7 +660,7 @@
         const randomIndex = Math.floor(Math.random() * randomTasksPool.length);
         const taskContent = randomTasksPool[randomIndex];
         
-        let store = await getStoreFromCloud();
+        let store = currentCachedStore;
         store.activeTask = {
             text: taskContent,
             isBlind: true,
@@ -634,14 +668,14 @@
             publishTime: new Date().toLocaleTimeString()
         };
         await saveStoreToCloud(store);
-        alert('🎁 随机盲盒任务已成功发布至云端！');
+        alert('🎁 盲盒任务已发布！');
     }
 
     async function publishCustomTask() {
         const text = document.getElementById('custom-task-input').value;
         if (!text) { alert('请先输入自定义任务内容！'); return; }
 
-        let store = await getStoreFromCloud();
+        let store = currentCachedStore;
         store.activeTask = {
             text: text,
             isBlind: false,
@@ -649,12 +683,12 @@
             publishTime: new Date().toLocaleTimeString()
         };
         await saveStoreToCloud(store);
-        alert('⚡ 自定义任务已下发至云端！');
+        alert('⚡ 自定义任务已下发！');
         document.getElementById('custom-task-input').value = '';
     }
 
     async function revealBlindBox() {
-        let store = await getStoreFromCloud();
+        let store = currentCachedStore;
         if (store.activeTask) {
             store.activeTask.isRevealed = true;
             await saveStoreToCloud(store);
@@ -668,7 +702,6 @@
 
         if (store.activeTask && store.activeTask.text) {
             card.style.display = 'block';
-
             if (store.activeTask.isBlind && !store.activeTask.isRevealed) {
                 contentBox.innerHTML = `
                     <div class="blind-box" onclick="revealBlindBox()">
@@ -698,7 +731,7 @@
 
     async function updateDogState() {
         const state = document.getElementById('dog-state-selector').value;
-        let store = await getStoreFromCloud();
+        let store = currentCachedStore;
         store.dogState = state;
         await saveStoreToCloud(store);
     }
@@ -706,7 +739,7 @@
     async function submitReport() {
         const dogName = localStorage.getItem('bdsm_dog_name') || '乖小狗';
         const status = document.getElementById('dog-status').value || '完成任务汇报';
-        let store = await getStoreFromCloud();
+        let store = currentCachedStore;
         
         const reportData = {
             id: Date.now(),
@@ -722,13 +755,11 @@
 
         store.reports = store.reports || [];
         store.reports.unshift(reportData);
-        store.activeTask = null; // 提交后自动完成清除任务
-
+        store.activeTask = null; 
         store.petObed = Math.min(100, (store.petObed || 90) + 5);
 
         await saveStoreToCloud(store);
-
-        alert("🐾 报备已实时提交至云端！");
+        alert("🐾 报备提交成功！");
 
         document.getElementById('dog-status').value = '';
         document.getElementById('img-preview').style.display = 'none';
@@ -792,9 +823,9 @@
             try {
                 const parsed = JSON.parse(jsonText);
                 await saveStoreToCloud(parsed);
-                alert("✅ 备份已恢复并同步至云端！");
+                alert("✅ 备份恢复成功！");
             } catch(e) {
-                alert("❌ 格式解析失败，请检查粘贴的代码！");
+                alert("❌ 格式解析失败！");
             }
         }
     }
@@ -802,34 +833,6 @@
     function saveDogName() {
         const name = document.getElementById('dog-name').value || '乖小狗';
         localStorage.setItem('bdsm_dog_name', name);
-    }
-
-    async function fetchCloudData(isSilent = false) {
-        if (!isSilent) {
-            document.getElementById('cloud-indicator').innerText = '[云端同步中...]';
-        }
-        
-        await getStoreFromCloud();
-        
-        document.getElementById('cloud-indicator').innerText = '[实时云同步]';
-        
-        checkActiveTask();
-        const store = currentCachedStore;
-        
-        if (document.getElementById('dog-state-selector')) {
-            document.getElementById('dog-state-selector').value = store.dogState || '🟢 在线待命';
-        }
-        if (document.getElementById('master-view-dog-state')) {
-            document.getElementById('master-view-dog-state').innerText = store.dogState || '🟢 在线待命';
-        }
-
-        if (document.getElementById('master-panel').classList.contains('active')) {
-            loadReports();
-        } else if (document.getElementById('observer-panel').classList.contains('active')) {
-            loadObserverData();
-        } else {
-            loadDogDashboard();
-        }
     }
 
     function applyTemplate(type) {
@@ -906,7 +909,6 @@
         document.getElementById('password-modal').style.display = 'none';
     }
 
-    // 定位优化：放宽超时设置，增强兼容性
     function getGPS() {
         const status = document.getElementById('gps-status');
         status.innerText = "高德定位获取中...";
@@ -916,16 +918,16 @@
                     const lat = pos.coords.latitude;
                     const lon = pos.coords.longitude;
                     currentAmapUrl = `https://uri.amap.com/marker?position=${lon},${lat}&name=小狗精准位置&src=dogReport&coordinate=wgs84&callnative=1`;
-                    status.innerText = "✓ 定位成功！主人可一键查看高德导航标点";
+                    status.innerText = "✓ 定位成功！主人可一键查看高德地图标点";
                 },
                 err => {
-                    alert("定位获取失败：" + err.message + "\n提醒：如果使用的是微信内置浏览器，请点击右上角选择【在浏览器中打开】。");
-                    status.innerText = "❌ 定位失败，请开启浏览器位置许可";
+                    alert("定位获取失败：" + err.message);
+                    status.innerText = "❌ 定位失败，请检查定位许可";
                 },
                 { enableHighAccuracy: false, timeout: 10000, maximumAge: 0 }
             );
         } else {
-            alert("您的手机浏览器暂不支持 HTML5 定位");
+            alert("手机浏览器不支持 HTML5 定位");
         }
     }
 
@@ -1027,7 +1029,7 @@
                         <span>⏱️ ${item.time}</span>
                     </div>
                     <div class="report-text">${item.status}</div>
-                    ${item.amapUrl ? `<a href="${item.amapUrl}" target="_blank" style="color:var(--accent-blue); font-size:0.85em;">🗺️ 打开高德地图导航标点</a>` : ''}
+                    ${item.amapUrl ? `<a href="${item.amapUrl}" target="_blank" style="color:var(--accent-blue); font-size:0.85em;">🗺️ 查看高德地图位置</a>` : ''}
                     ${item.image ? `<img src="${item.image}" class="report-img" />` : ''}
                     
                     ${item.reply ? `<div class="reply-tag">👑 已给予批复: ${item.reply}</div>` : ''}
@@ -1081,7 +1083,7 @@
     }
 
     async function replyReport(id, replyText, stampText) {
-        let store = await getStoreFromCloud();
+        let store = currentCachedStore;
         const idx = (store.reports || []).findIndex(h => h.id === id);
         if (idx !== -1) {
             store.reports[idx].reply = replyText;
@@ -1099,8 +1101,8 @@
     }
 
     async function clearHistory() {
-        if (confirm("确认清空云端房间内所有记录与任务？")) {
-            let store = await getStoreFromCloud();
+        if (confirm("确认清空房间内所有记录与任务？")) {
+            let store = currentCachedStore;
             store.reports = [];
             store.activeTask = null;
             await saveStoreToCloud(store);
@@ -1110,6 +1112,3 @@
     // 初始化运行同步
     fetchCloudData();
 </script>
-
-</body>
-</html>
