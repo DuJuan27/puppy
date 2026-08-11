@@ -438,12 +438,12 @@
 
             <div class="form-group">
                 <button type="button" class="btn btn-secondary" onclick="getGPS()">🗺️ 锁定高德精准定位</button>
-                <span id="gps-status" style="font-size:0.8em; color:var(--accent-green); display:block;"></span>
+                <span id="gps-status" style="font-size:0.8em; color:var(--accent-green); display:block; margin-top:4px;"></span>
             </div>
 
             <div class="form-group">
-                <input type="file" id="camera-input" accept="image/*" capture="camera" style="display:none" onchange="processImageWithWatermark(this)">
-                <button type="button" class="btn btn-purple" onclick="document.getElementById('camera-input').click()">📷 强制现场拍摄打卡 (带水印)</button>
+                <input type="file" id="camera-input" accept="image/*" style="display:none" onchange="processImageWithWatermark(this)">
+                <button type="button" class="btn btn-purple" onclick="document.getElementById('camera-input').click()">📷 拍照 / 拍照上传 (带防伪水印)</button>
                 <img id="img-preview" style="width:100%; border-radius:8px; margin-top:8px; display:none;">
             </div>
 
@@ -509,8 +509,7 @@
 <div id="timeline-modal" class="modal">
     <div class="modal-content">
         <div style="color:var(--accent-gold); font-weight:bold; font-size:1.1em; margin-bottom:12px;">📖 专属时间轴回忆录</div>
-        <div id="timeline-body" class="timeline-container">
-            </div>
+        <div id="timeline-body" class="timeline-container"></div>
         <button class="btn btn-secondary" style="margin-top:15px;" onclick="closeTimelineModal()">关闭</button>
     </div>
 </div>
@@ -534,8 +533,8 @@
     let roomKey = localStorage.getItem('bdsm_room_key') || 'mydog2026';
     let titleClickCount = 0;
     
-    // 云端同步全局 API 点（基于 kvdb/json 存储公共节点）
-    const CLOUD_API_BASE = "https://kvdb.io/4y923j1m834v34/";
+    // 云端 REST API 地址
+    const CLOUD_API_BASE = "https://kvdb.io/4yZ8C9qM2R1pX7N6vL3w/";
 
     let currentCachedStore = {
         reports: [],
@@ -546,7 +545,7 @@
 
     document.getElementById('room-display').innerText = roomKey;
 
-    // 轮询机制：每 5 秒自动跨设备同步一次
+    // 自动轮询机制：每 5 秒自动全网同步最新数据
     setInterval(() => {
         fetchCloudData(true);
     }, 5000);
@@ -585,23 +584,27 @@
         }
     }
 
-    // ☁️ 云端 REST API 交互封装
+    // ☁️ 云端 API 交互逻辑
     async function getStoreFromCloud() {
         try {
             const resp = await fetch(CLOUD_API_BASE + roomKey, { method: 'GET' });
             if (resp.ok) {
                 const data = await resp.json();
                 currentCachedStore = data;
+                localStorage.setItem('bdsm_data_' + roomKey, JSON.stringify(data));
                 return data;
             }
         } catch (e) {
-            console.warn("云端读取超时，回退至本地缓存", e);
+            console.warn("网络连接问题，读取本地缓存", e);
         }
+        const local = localStorage.getItem('bdsm_data_' + roomKey);
+        if (local) currentCachedStore = JSON.parse(local);
         return currentCachedStore;
     }
 
     async function saveStoreToCloud(data) {
         currentCachedStore = data;
+        localStorage.setItem('bdsm_data_' + roomKey, JSON.stringify(data));
         try {
             await fetch(CLOUD_API_BASE + roomKey, {
                 method: 'POST',
@@ -609,9 +612,9 @@
                 body: JSON.stringify(data)
             });
         } catch (e) {
-            console.error("云端保存失败", e);
+            console.error("保存至云端失败", e);
         }
-        fetchCloudData();
+        fetchCloudData(true);
     }
 
     function generateTaskIdea() {
@@ -719,7 +722,7 @@
 
         store.reports = store.reports || [];
         store.reports.unshift(reportData);
-        store.activeTask = null; // 提交后自动消除下发的任务
+        store.activeTask = null; // 提交后自动完成清除任务
 
         store.petObed = Math.min(100, (store.petObed || 90) + 5);
 
@@ -903,18 +906,26 @@
         document.getElementById('password-modal').style.display = 'none';
     }
 
+    // 定位优化：放宽超时设置，增强兼容性
     function getGPS() {
         const status = document.getElementById('gps-status');
-        status.innerText = "高德定位中...";
+        status.innerText = "高德定位获取中...";
         if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(pos => {
-                const lat = pos.coords.latitude;
-                const lon = pos.coords.longitude;
-                currentAmapUrl = `https://uri.amap.com/marker?position=${lon},${lat}&name=小狗精准位置&src=dogReport&coordinate=wgs84&callnative=1`;
-                status.innerText = "✓ 高德定位成功！主人可一键查看导航";
-            }, err => {
-                status.innerText = "❌ 定位失败，请开启位置权限";
-            });
+            navigator.geolocation.getCurrentPosition(
+                pos => {
+                    const lat = pos.coords.latitude;
+                    const lon = pos.coords.longitude;
+                    currentAmapUrl = `https://uri.amap.com/marker?position=${lon},${lat}&name=小狗精准位置&src=dogReport&coordinate=wgs84&callnative=1`;
+                    status.innerText = "✓ 定位成功！主人可一键查看高德导航标点";
+                },
+                err => {
+                    alert("定位获取失败：" + err.message + "\n提醒：如果使用的是微信内置浏览器，请点击右上角选择【在浏览器中打开】。");
+                    status.innerText = "❌ 定位失败，请开启浏览器位置许可";
+                },
+                { enableHighAccuracy: false, timeout: 10000, maximumAge: 0 }
+            );
+        } else {
+            alert("您的手机浏览器暂不支持 HTML5 定位");
         }
     }
 
@@ -1096,7 +1107,7 @@
         }
     }
 
-    // 初始化第一次同步
+    // 初始化运行同步
     fetchCloudData();
 </script>
 
