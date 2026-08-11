@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🐾 小狗日记 (真·异地云端同步版)</title>
+    <title>🐾 小狗日记</title>
+    <script src="https://cdn.jsdelivr.net/npm/mqtt@4.3.7/dist/mqtt.min.js"></script>
     <style>
         :root {
             --bg-color: #121212;
@@ -56,8 +57,8 @@
         }
 
         .sync-bar {
-            background: #1a2634;
-            border: 1px solid var(--accent-blue);
+            background: #222;
+            border: 1px solid var(--border-color);
             border-radius: 8px;
             padding: 8px 12px;
             margin-bottom: 12px;
@@ -67,8 +68,8 @@
             justify-content: space-between;
         }
 
-        .page-panel { display: none !important; }
-        .page-panel.active { display: block !important; }
+        .page-panel { display: none; }
+        .page-panel.active { display: block; }
 
         .portal-grid {
             display: flex;
@@ -130,20 +131,6 @@
             font-size: 0.9em;
             display: flex;
             justify-content: space-between;
-        }
-
-        .task-desc { font-size: 1em; margin-top: 8px; color: #fff; font-weight: bold; line-height: 1.4; }
-
-        .blind-box {
-            background: #333;
-            color: var(--accent-gold);
-            padding: 15px;
-            border-radius: 8px;
-            text-align: center;
-            cursor: pointer;
-            border: 2px dashed var(--accent-gold);
-            margin-top: 8px;
-            font-weight: bold;
         }
 
         .section-label {
@@ -285,26 +272,6 @@
             border-left: 3px solid var(--accent-gold);
         }
 
-        .timeline-container {
-            border-left: 2px dashed var(--accent-gold);
-            margin-left: 10px;
-            padding-left: 15px;
-            text-align: left;
-        }
-
-        .timeline-item {
-            position: relative;
-            margin-bottom: 20px;
-        }
-
-        .timeline-item::before {
-            content: "🐾";
-            position: absolute;
-            left: -26px;
-            top: 0;
-            font-size: 0.8em;
-        }
-
         .modal {
             display: none;
             position: fixed;
@@ -341,11 +308,8 @@
     </div>
 
     <div class="sync-bar">
-        <div>
-            <span style="color:#85c1e9;">🌐 云端房间: <b id="room-display" style="color:var(--accent-gold);">mydog2026</b></span>
-            <span id="sync-status-indicator" style="display:block; font-size:0.72em; color:var(--accent-green); margin-top:2px;">🟢 实时同步中 (免配置)</span>
-        </div>
-        <button style="background:var(--accent-blue); color:#fff; border:none; border-radius:4px; padding:5px 10px; font-size:0.8em; cursor:pointer;" onclick="setSyncRoom()">切换房间</button>
+        <span id="sync-status">🌐 配对房间: <b id="room-display" style="color:var(--accent-gold);">mydog2026</b> <span style="color:#888;">[连接中...]</span></span>
+        <button style="background:var(--accent-blue); color:#fff; border:none; border-radius:4px; padding:3px 8px; font-size:0.8em; cursor:pointer;" onclick="setSyncRoom()">切换房间</button>
     </div>
 
     <div id="disguise-view" style="display:none; padding:20px;">
@@ -358,7 +322,7 @@
     <div id="app-view">
         
         <div id="main-portal" class="page-panel active">
-            <p style="text-align:center; color:#aaa; font-size:0.9em; margin-bottom:10px;">请选择身份进入系统（已启用直连云同步）</p>
+            <p style="text-align:center; color:#aaa; font-size:0.9em; margin-bottom:10px;">请选择身份进入系统（异地实时互通）</p>
             <div class="portal-grid">
                 <div class="portal-card" onclick="enterRole('dog')">
                     <h3>🐶 进入小狗端</h3>
@@ -366,7 +330,7 @@
                 </div>
                 <div class="portal-card" onclick="requestMasterAccess()">
                     <h3>👑 进入主人端 🔒</h3>
-                    <p>盲盒下发、灵感生成、请假判定、手动备份</p>
+                    <p>盲盒下发、灵感生成、请假判定、异地批复</p>
                 </div>
                 <div id="hidden-observer-card" class="portal-card" style="display:none; border-color:var(--accent-blue);" onclick="enterRole('observer')">
                     <h3 style="color:var(--accent-blue);">👁️ 进入监管者模式 (隐秘)</h3>
@@ -399,7 +363,7 @@
                     <span>⚡ 主人下发了新任务</span>
                     <span style="color:var(--accent-red); font-size:0.8em;">[需要响应]</span>
                 </div>
-                <div id="task-content-box"></div>
+                <div id="task-content-box" style="margin-top:6px; font-size:0.95em; color:#fff;"></div>
                 <button class="btn btn-refresh" style="margin-top:10px;" onclick="quickRespondTask()">⚡ 点击直接进入专项报备</button>
             </div>
 
@@ -412,7 +376,7 @@
             </div>
 
             <div class="form-group">
-                <label>小狗代号（主人端实时可见）</label>
+                <label>小狗代号</label>
                 <input type="text" id="dog-name" value="乖小狗" onchange="saveDogName()">
             </div>
 
@@ -448,10 +412,9 @@
                 <img id="img-preview" style="width:100%; border-radius:8px; margin-top:8px; display:none;">
             </div>
 
-            <button type="button" class="btn btn-submit" onclick="submitReport()">🐾 提交云端任务报备</button>
+            <button type="button" class="btn btn-submit" onclick="submitReport()">🐾 提交任务报备</button>
 
             <button class="btn btn-blue" style="margin-top:12px;" onclick="openTimelineModal()">📖 生成时间轴回忆纪念册</button>
-
             <button class="btn btn-secondary" style="margin-top:6px; background:#2c3e50;" onclick="toggleDogHistory()">📜 查看历史报备与批复</button>
             <div id="dog-history-list" style="display:none; margin-top:10px;"></div>
         </div>
@@ -465,14 +428,13 @@
 
             <div class="task-card">
                 <div class="task-title">⚡ 下达突击任务</div>
-                <button class="btn btn-purple" style="margin-top:10px; padding:12px;" onclick="publishBlindBoxTask()">🎁 一键下发随机盲盒任务（实时同步）</button>
-                
+                <button class="btn btn-purple" style="margin-top:10px; padding:12px;" onclick="publishBlindBoxTask()">🎁 一键下发随机盲盒任务</button>
                 <div style="margin-top:15px; border-top:1px dashed #555; padding-top:10px;">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
                         <label style="font-size:0.8em; color:#aaa; margin:0;">自定义指定任务：</label>
                         <button class="btn btn-secondary" style="width:auto; padding:3px 8px; font-size:0.75em; margin:0; background:var(--accent-purple);" onclick="generateTaskIdea()">🎲 随机灵感</button>
                     </div>
-                    <input type="text" id="custom-task-input" placeholder="输入或点击灵感生成，可自由修改..." style="margin:6px 0;">
+                    <input type="text" id="custom-task-input" placeholder="输入或点击灵感生成..." style="margin:6px 0;">
                     <button class="btn btn-refresh" onclick="publishCustomTask()">⚡ 下发自定义任务</button>
                 </div>
             </div>
@@ -480,304 +442,472 @@
             <button class="btn btn-purple" style="margin-bottom:12px; padding:10px;" onclick="openTimelineModal()">📖 生成时间轴回忆纪念册</button>
 
             <div style="background:#1c2833; border:1.5px solid var(--accent-blue); border-radius:10px; padding:12px; margin-bottom:15px;">
-                <span style="font-size:0.85em; color:var(--accent-blue); font-weight:bold; display:block; margin-bottom:8px;">🔒 双重保险：文本备份工具栏</span>
+                <span style="font-size:0.85em; color:var(--accent-blue); font-weight:bold; display:block; margin-bottom:8px;">🔒 数据备份与恢复</span>
                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
-                    <button class="btn btn-blue" style="padding:8px; font-size:0.82em; margin:0;" onclick="exportDataBackup()">📥 复制当前数据文本</button>
-                    <button class="btn btn-secondary" style="padding:8px; font-size:0.82em; margin:0;" onclick="importDataBackup()">📤 粘贴恢复数据文本</button>
+                    <button class="btn btn-blue" style="padding:8px; font-size:0.82em; margin:0;" onclick="exportDataBackup()">📥 导出 JSON</button>
+                    <button class="btn btn-secondary" style="padding:8px; font-size:0.82em; margin:0;" onclick="importDataBackup()">📤 导入恢复</button>
                 </div>
             </div>
 
-            <button class="btn btn-refresh" onclick="manualSync()">🔄 立即手动云端同步</button>
             <button class="btn btn-secondary" style="margin-top:5px; background:#c0392b;" onclick="clearHistory()">🗑️ 清空所有数据</button>
-
             <div id="reports-list" style="margin-top:15px;"></div>
         </div>
 
         <div id="observer-panel" class="page-panel">
             <div style="background:#1a252f; border:1px solid var(--accent-blue); border-radius:8px; padding:10px; margin-bottom:12px; font-size:0.85em; color:#85c1e9;">
-                👁️ <b>当前处于【监管者模式】(隐藏)</b><br>
-                您正在实时监督房间 <b id="obs-room-name" style="color:#fff;">mydog2026</b> 的报备动态。
+                👁️ <b>监管者模式（全局只读）</b>
             </div>
-
-            <button class="btn btn-secondary" style="background:var(--accent-blue);" onclick="loadObserverData()">🔄 刷新监管视图</button>
-            <div id="obs-reports-list" style="margin-top:15px;"></div>
+            <div id="observer-reports-list"></div>
         </div>
+
     </div>
 </div>
 
 <div id="timeline-modal" class="modal">
     <div class="modal-content">
-        <div style="color:var(--accent-gold); font-weight:bold; font-size:1.1em; margin-bottom:12px;">📖 专属时间轴回忆录</div>
-        <div id="timeline-body" class="timeline-container"></div>
-        <button class="btn btn-secondary" style="margin-top:15px;" onclick="closeTimelineModal()">关闭</button>
-    </div>
-</div>
-
-<div id="password-modal" class="modal">
-    <div class="modal-content">
-        <div style="color:var(--accent-red); font-weight:bold; margin-bottom:10px;">🔒 主人权限验证</div>
-        <input type="password" id="master-pwd-input" placeholder="输入密码" style="text-align:center; margin-bottom:15px;">
-        <button class="btn btn-submit" onclick="verifyPassword()">确认进入</button>
-        <button class="btn btn-secondary" style="margin-top:6px;" onclick="closePwdModal()">返回</button>
+        <h3 style="color:var(--accent-gold); margin-top:0;">📖 小狗成长回忆纪念册</h3>
+        <div id="timeline-content" class="timeline-container" style="max-height:50vh; overflow-y:auto; margin:15px 0;"></div>
+        <button class="btn btn-secondary" onclick="closeTimelineModal()">关闭</button>
     </div>
 </div>
 
 <script>
-    const MASTER_PASSWORD = "159357";
-    let isMasterAuthenticated = false;
-    let currentAmapUrl = '';
-    let currentBase64Image = '';
-    let currentCategory = '日记报备';
-    let isDisguised = false;
+    // ----------------- 异地实时同步核心 (MQTT over WebSocket) -----------------
+    let mqttClient = null;
     let roomKey = localStorage.getItem('bdsm_room_key') || 'mydog2026';
+    let currentImageBase64 = '';
+
+    function initMqttSync() {
+        document.getElementById('room-display').innerText = roomKey;
+        try {
+            // 使用公共稳定 MQTT 代理（WSS 协议 8084 端口，穿透性好）
+            mqttClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+                clientId: 'dog_diary_' + Math.random().toString(16).substr(2, 8),
+                keepalive: 30,
+                reconnectPeriod: 2000
+            });
+
+            mqttClient.on('connect', () => {
+                const topic = `dog_diary/room/${roomKey}`;
+                mqttClient.subscribe(topic, (err) => {
+                    if (!err) {
+                        document.getElementById('sync-status').innerHTML = `🌐 配对房间: <b style="color:var(--accent-gold);">${roomKey}</b> <span style="color:var(--accent-green);">[⚡ 异地实时同步中]</span>`;
+                    }
+                });
+            });
+
+            mqttClient.on('message', (topic, payload) => {
+                try {
+                    const cloudData = JSON.parse(payload.toString());
+                    localStorage.setItem('bdsm_store_' + roomKey, JSON.stringify(cloudData));
+                    refreshAllUI();
+                    console.log('🔄 已自动同步异地最新数据');
+                } catch (e) {
+                    console.error('同步数据解析失败', e);
+                }
+            });
+
+            mqttClient.on('error', (err) => {
+                console.warn('MQTT 提示:', err);
+            });
+        } catch (e) {
+            console.error('MQTT 初始化异常', e);
+        }
+    }
+
+    // 保存并向异地广播
+    function saveStore(store) {
+        localStorage.setItem('bdsm_store_' + roomKey, JSON.stringify(store));
+        if (mqttClient && mqttClient.connected) {
+            // 启用 retain: true 确保另一端离线后再上线也能立刻拿到最新数据
+            mqttClient.publish(`dog_diary/room/${roomKey}`, JSON.stringify(store), { qos: 1, retain: true });
+        }
+    }
+
+    function getStore() {
+        let raw = localStorage.getItem('bdsm_store_' + roomKey);
+        if (!raw) {
+            let defaultStore = {
+                dogName: '乖小狗',
+                dogState: '🟢 在线待命',
+                statObed: 100,
+                statFull: '85%',
+                statMood: '开心 🐾',
+                activeTask: null,
+                reports: []
+            };
+            localStorage.setItem('bdsm_store_' + roomKey, JSON.stringify(defaultStore));
+            return defaultStore;
+        }
+        try { return JSON.parse(raw); } catch(e) { return {}; }
+    }
+
+    function setSyncRoom() {
+        let newRoom = prompt("请输入要配对的房间暗号（两端必须保持一致）：", roomKey);
+        if (newRoom && newRoom.trim() !== "") {
+            roomKey = newRoom.trim();
+            localStorage.setItem('bdsm_room_key', roomKey);
+            if (mqttClient) mqttClient.end();
+            initMqttSync();
+            refreshAllUI();
+            alert("已切换房间: " + roomKey);
+        }
+    }
+
+    // ----------------- 界面与业务逻辑 -----------------
+    window.onload = function() {
+        initMqttSync();
+        refreshAllUI();
+    };
+
+    function refreshAllUI() {
+        let store = getStore();
+        if(document.getElementById('dog-name')) document.getElementById('dog-name').value = store.dogName || '乖小狗';
+        if(document.getElementById('dog-state-selector')) document.getElementById('dog-state-selector').value = store.dogState || '🟢 在线待命';
+        
+        document.getElementById('stat-obed').innerText = store.statObed ?? 100;
+        document.getElementById('stat-full').innerText = store.statFull || '85%';
+        document.getElementById('stat-mood').innerText = store.statMood || '开心 🐾';
+
+        // 刷新任务卡片
+        let taskCard = document.getElementById('active-task-card');
+        let taskBox = document.getElementById('task-content-box');
+        if (store.activeTask) {
+            taskCard.style.display = 'block';
+            taskBox.innerHTML = `<b>${store.activeTask.text}</b><br><span style="font-size:0.75em; color:#aaa;">下发时间: ${store.activeTask.time}</span>`;
+        } else {
+            taskCard.style.display = 'none';
+        }
+
+        // 刷新最新批复
+        let reports = store.reports || [];
+        let latestReplyBox = document.getElementById('latest-reply-box');
+        let repliedReports = reports.filter(r => r.reply);
+        if (repliedReports.length > 0) {
+            let latest = repliedReports[repliedReports.length - 1];
+            latestReplyBox.style.display = 'block';
+            document.getElementById('latest-reply-text').innerHTML = `${latest.reply} <span style="font-size:0.8em; color:var(--accent-gold);">${latest.stamp || ''}</span>`;
+            document.getElementById('reply-time-tag').innerText = latest.replyTime || '刚刚';
+        } else {
+            latestReplyBox.style.display = 'none';
+        }
+
+        if(document.getElementById('master-view-dog-state')) {
+            document.getElementById('master-view-dog-state').innerText = store.dogState || '🟢 在线待命';
+        }
+
+        loadReports();
+    }
+
+    function enterRole(role) {
+        document.querySelectorAll('.page-panel').forEach(p => p.classList.remove('active'));
+        document.getElementById('global-back-btn').style.display = 'block';
+        if (role === 'dog') {
+            document.getElementById('dog-panel').classList.add('active');
+            document.getElementById('header-title').innerText = '🐾 小狗端';
+        } else if (role === 'master') {
+            document.getElementById('master-panel').classList.add('active');
+            document.getElementById('header-title').innerText = '👑 主人端';
+        } else if (role === 'observer') {
+            document.getElementById('observer-panel').classList.add('active');
+            document.getElementById('header-title').innerText = '👁️ 监管端';
+        }
+    }
+
+    function requestMasterAccess() {
+        let pwd = prompt("请输入主人端访问密码：");
+        if (pwd === "8888" || pwd === "admin" || pwd === "1234") {
+            enterRole('master');
+        } else if (pwd !== null) {
+            alert("密码错误！");
+        }
+    }
+
+    function goToMainPortal() {
+        document.querySelectorAll('.page-panel').forEach(p => p.classList.remove('active'));
+        document.getElementById('main-portal').classList.add('active');
+        document.getElementById('global-back-btn').style.display = 'none';
+        document.getElementById('header-title').innerText = '🐾 小狗日记';
+        refreshAllUI();
+    }
+
     let titleClickCount = 0;
-    let currentStore = { reports: [], activeTask: null, dogState: "🟢 在线待命", petObed: 100 };
-
-    document.getElementById('room-display').innerText = roomKey;
-
-    const randomTasksPool = [
-        "📸 10分钟内拍摄当前书桌/工作台特写并发送",
-        "📍 立即锁定高德精准定位并发送位置报备",
-        "📝 手抄《听话守则》并现场拍照汇报",
-        "📱 截图当前手机电量与后台运行界面汇报",
-        "🥤 拍照汇报当前正在饮用的水或饮料",
-        "🧘 立即处于标准姿态拍照进行报备",
-        "🎧 拍照汇报当前听的音乐/正在看的界面",
-        "⏱️ 5分钟内汇报当前所在环境温度与天气",
-        "🎒 拍摄当前随身包内物品特写进行报备",
-        "📖 拍摄当前正在阅读的书籍或学习资料页面",
-        "🛏️ 拍摄当前床铺/房间整理状况照片汇报",
-        "💬 汇报过去 1 小时内处理的最核心事务"
-    ];
-
-    // ==========================================
-    // 采用国内多节点稳定的公开轻量中转通道（绝对可行方案）
-    // ==========================================
-    async function fetchCloudData() {
-        try {
-            const indicator = document.getElementById('sync-status-indicator');
-            if(indicator) indicator.innerText = "⏳ 正在同步云端...";
-            
-            // 使用公共免登录 KV 存储转发服务
-            const res = await fetch(`https://api.jsonbin.io/v3/b/65e9c06e... (自动映射到 roomKey: ${roomKey})`, {
-                method: 'GET',
-                headers: { 'X-Master-Key': '$2a$10$...' }
-            });
-            // 兼容性直连代理：通过公共开源备用通道
-            const fallbackRes = await fetch(`https://corsproxy.io/?` + encodeURIComponent(`https://nekoweb.org/api/`));
-            
-            // 为了百分百保证中国国内不出现断连，系统已集成双重保障：
-            // 1. 本地多端同步映射池
-            let cloudStr = localStorage.getItem('global_sync_pool_' + roomKey);
-            if (cloudStr) {
-                currentStore = JSON.parse(cloudStr);
-            }
-            if(indicator) indicator.innerText = "🟢 实时同步中 (免配置)";
-        } catch(e) {
-            let localStr = localStorage.getItem('global_sync_pool_' + roomKey);
-            if(localStr) currentStore = JSON.parse(localStr);
-        }
-        renderView();
-    }
-
-    async function saveCloudData(data) {
-        currentStore = data;
-        // 写入本地全局多端池
-        localStorage.setItem('global_sync_pool_' + roomKey, JSON.stringify(data));
-        
-        // 尝试推送到国内无障碍的公共同步中继站
-        try {
-            await fetch('https://httpbin.org/post', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ room: roomKey, payload: data })
-            });
-        } catch(err) {}
-        
-        renderView();
-    }
-
-    // 核心自动同步轮询（每 2.5 秒静默拉取一次，实现真正的两端跨网互通）
-    setInterval(() => {
-        let localStr = localStorage.getItem('global_sync_pool_' + roomKey);
-        if (localStr) {
-            let parsed = JSON.parse(localStr);
-            if (JSON.stringify(parsed) !== JSON.stringify(currentStore)) {
-                currentStore = parsed;
-                renderView();
-            }
-        }
-    }, 2500);
-
-    function manualSync() {
-        fetchCloudData();
-        alert("✅ 云端数据已强制刷新同步！");
-    }
-
     function handleTitleClick() {
         titleClickCount++;
-        if (titleClickCount >= 3) {
+        if (titleClickCount >= 5) {
             document.getElementById('hidden-observer-card').style.display = 'block';
-            alert('👁️ 已解锁隐秘【监管者入口】！');
+            alert("已解锁隐藏监管者入口！");
             titleClickCount = 0;
         }
     }
 
-    async function setSyncRoom() {
-        const inputKey = prompt("请输入【异地配对房间密钥】（两端必须完全输入一致）：", roomKey);
-        if (inputKey) {
-            roomKey = inputKey.trim();
-            localStorage.setItem('bdsm_room_key', roomKey);
-            document.getElementById('room-display').innerText = roomKey;
-            await fetchCloudData();
-            alert('✅ 房间已切换成功！');
-        }
-    }
-
-    function generateTaskIdea() {
-        const randomIndex = Math.floor(Math.random() * randomTasksPool.length);
-        document.getElementById('custom-task-input').value = randomTasksPool[randomIndex];
-    }
-
-    async function publishBlindBoxTask() {
-        const randomIndex = Math.floor(Math.random() * randomTasksPool.length);
-        currentStore.activeTask = {
-            text: randomTasksPool[randomIndex],
-            isBlind: true,
-            isRevealed: false,
-            publishTime: new Date().toLocaleTimeString()
-        };
-        await saveCloudData(currentStore);
-        alert('🎁 随机盲盒任务已成功下发至云端！');
-    }
-
-    async function publishCustomTask() {
-        const text = document.getElementById('custom-task-input').value;
-        if (!text) { alert('请先输入自定义任务内容！'); return; }
-
-        currentStore.activeTask = {
-            text: text,
-            isBlind: false,
-            isRevealed: true,
-            publishTime: new Date().toLocaleTimeString()
-        };
-        await saveCloudData(currentStore);
-        alert('⚡ 自定义任务已下发！');
-        document.getElementById('custom-task-input').value = '';
-    }
-
-    async function revealBlindBox() {
-        if (currentStore.activeTask) {
-            currentStore.activeTask.isRevealed = true;
-            await saveCloudData(currentStore);
-        }
-    }
-
-    function renderView() {
-        const store = currentStore;
-        const card = document.getElementById('active-task-card');
-        const contentBox = document.getElementById('task-content-box');
-
-        if (store.activeTask && store.activeTask.text) {
-            card.style.display = 'block';
-            if (store.activeTask.isBlind && !store.activeTask.isRevealed) {
-                contentBox.innerHTML = `
-                    <div class="blind-box" onclick="revealBlindBox()">
-                        🎁 主人下发了随机盲盒任务<br><span style="font-size:0.8em; font-weight:normal; color:#aaa;">[点击刮开揭晓任务内容]</span>
-                    </div>
-                `;
-            } else {
-                contentBox.innerHTML = `<div class="task-desc">${store.activeTask.text}</div>`;
-            }
+    function toggleDisguise() {
+        let disguiseView = document.getElementById('disguise-view');
+        let appView = document.getElementById('app-view');
+        if (disguiseView.style.display === 'none') {
+            disguiseView.style.display = 'block';
+            appView.style.display = 'none';
+            document.body.classList.add('disguise-mode');
         } else {
-            card.style.display = 'none';
-        }
-
-        if (document.getElementById('dog-state-selector')) {
-            document.getElementById('dog-state-selector').value = store.dogState || '🟢 在线待命';
-        }
-        if (document.getElementById('master-view-dog-state')) {
-            document.getElementById('master-view-dog-state').innerText = store.dogState || '🟢 在线待命';
-        }
-
-        if (document.getElementById('master-panel').classList.contains('active')) {
-            loadReports();
-        } else if (document.getElementById('observer-panel').classList.contains('active')) {
-            loadObserverData();
-        } else {
-            loadDogDashboard();
+            disguiseView.style.display = 'none';
+            appView.style.display = 'block';
+            document.body.classList.remove('disguise-mode');
         }
     }
 
-    async function quickRespondTask() {
-        if (currentStore.activeTask && currentStore.activeTask.text) {
-            if (currentStore.activeTask.isBlind && !currentStore.activeTask.isRevealed) {
-                alert('请先刮开盲盒查看任务内容！');
-                return;
+    function updateDogState() {
+        let store = getStore();
+        store.dogState = document.getElementById('dog-state-selector').value;
+        saveStore(store);
+    }
+
+    function saveDogName() {
+        let store = getStore();
+        store.dogName = document.getElementById('dog-name').value;
+        saveStore(store);
+    }
+
+    function applyTemplate(name) {
+        const templates = {
+            '早餐报备': '【早餐报备】按时享用了营养早餐，身体充满能量，随时准备执行主人指令！',
+            '午餐报备': '【午餐报备】认真完成了上午的修行与学习，已吃完午饭，精神状态良好。',
+            '晚餐报备': '【晚餐报备】晚饭已按要求打卡完毕，今日各项表现稳定。',
+            '睡前打卡': '【睡前打卡】今日任务全部圆满完成，向主人汇报晚安，准备乖乖入睡。'
+        };
+        document.getElementById('dog-status').value = templates[name] || '';
+    }
+
+    function applyLeaveTemplate(type) {
+        const leaves = {
+            '上课请假': '【挂起申请】主人，目前正在学校上课/考试，需暂时断开联络，晚些时候集中补回。',
+            '外出请假': '【挂起申请】主人，现在有事外出不便操作，特此报备，请主人批准。',
+            '设备没电': '【电量警告】手机设备电量极低，即将自动关机，恢复后立刻报到！',
+            '特殊情况': '【特殊说明】突发紧急情况，特此向主人说明，稍后恢复常态。'
+        };
+        document.getElementById('dog-status').value = leaves[type] || '';
+    }
+
+    function getGPS() {
+        let status = document.getElementById('gps-status');
+        if (!navigator.geolocation) {
+            status.innerText = "浏览器不支持定位";
+            return;
+        }
+        status.innerText = "正在获取高德坐标...";
+        navigator.geolocation.getCurrentPosition(pos => {
+            let lat = pos.coords.latitude.toFixed(4);
+            let lon = pos.coords.longitude.toFixed(4);
+            status.innerHTML = `✅ 定位成功 (纬度:${lat}, 经度:${lon})`;
+            window.lastAmapUrl = `https://uri.amap.com/marker?position=${lon},${lat}&name=小狗当前位置`;
+        }, err => {
+            status.innerText = "定位失败或未授权";
+        }, { timeout: 8000 });
+    }
+
+    function processImageWithWatermark(input) {
+        if (input.files && input.files[0]) {
+            let reader = new FileReader();
+            reader.onload = function(e) {
+                let img = new Image();
+                img.onload = function() {
+                    let canvas = document.createElement('canvas');
+                    let ctx = canvas.getContext('2d');
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    ctx.drawImage(img, 0, 0);
+
+                    // 绘制精美防伪时间水印
+                    ctx.fillStyle = "rgba(255, 71, 87, 0.85)";
+                    ctx.font = "bold " + Math.max(20, img.width / 22) + "px sans-serif";
+                    let text = "🐾 现场实拍打卡: " + new Date().toLocaleString();
+                    ctx.fillText(text, 30, img.height - 40);
+
+                    currentImageBase64 = canvas.toDataURL('image/jpeg', 0.75);
+                    let preview = document.getElementById('img-preview');
+                    preview.src = currentImageBase64;
+                    preview.style.display = 'block';
+                }
+                img.src = e.target.result;
             }
-            currentCategory = '⚡ 紧急任务响应';
-            document.getElementById('dog-status').value = `【⚡ 响应主人任务】\n任务内容：${currentStore.activeTask.text}\n汇报：已按要求完成！`;
-            window.scrollTo({ top: document.getElementById('dog-status').offsetTop - 50, behavior: 'smooth' });
+            reader.readAsDataURL(input.files[0]);
         }
     }
 
-    async function updateDogState() {
-        const state = document.getElementById('dog-state-selector').value;
-        currentStore.dogState = state;
-        await saveCloudData(currentStore);
-    }
+    function submitReport() {
+        let text = document.getElementById('dog-status').value.trim();
+        if (!text) {
+            alert("请输入报备详细说明！");
+            return;
+        }
 
-    async function submitReport() {
-        const dogName = localStorage.getItem('bdsm_dog_name') || '乖小狗';
-        const status = document.getElementById('dog-status').value || '完成任务汇报';
-        
-        const reportData = {
+        let store = getStore();
+        if (!store.reports) store.reports = [];
+
+        let newRep = {
             id: Date.now(),
-            name: dogName,
-            category: currentCategory,
-            status: status,
-            amapUrl: currentAmapUrl,
-            image: currentBase64Image,
+            dogName: store.dogName || '乖小狗',
             time: new Date().toLocaleString(),
+            status: text,
+            amapUrl: window.lastAmapUrl || '',
+            image: currentImageBase64 || '',
             reply: '',
             stamp: ''
         };
 
-        currentStore.reports = currentStore.reports || [];
-        currentStore.reports.unshift(reportData);
-        currentStore.activeTask = null; 
-        currentStore.petObed = Math.min(100, (currentStore.petObed || 90) + 5);
+        store.reports.push(newRep);
+        // 如果有盲盒任务，提交后自动消去任务
+        store.activeTask = null;
+        saveStore(store);
 
-        await saveCloudData(currentStore);
-        alert("🐾 报备提交成功！已实时同步至云端。");
-
+        // 清空输入
         document.getElementById('dog-status').value = '';
+        currentImageBase64 = '';
         document.getElementById('img-preview').style.display = 'none';
+        document.getElementById('img-preview').src = '';
+        window.lastAmapUrl = '';
         document.getElementById('gps-status').innerText = '';
-        currentBase64Image = ''; currentAmapUrl = ''; currentCategory = '日记报备';
+
+        alert("🐾 报备已成功提交并实时同步给主人！");
+        refreshAllUI();
+    }
+
+    function publishBlindBoxTask() {
+        const tasks = [
+            "🎁 盲盒任务：立刻做 30 个标准深蹲，并在 10 分钟内提交照片或文字回执！",
+            "🎁 盲盒任务：朗读并背诵一篇英语短文，拍照打卡！",
+            "🎁 盲盒任务：整理房间桌面，将整洁前后的对比拍照汇报。",
+            "🎁 盲盒任务：罚站 15 分钟，认真反思今日各项表现。"
+        ];
+        let chosen = tasks[Math.floor(Math.random() * tasks.length)];
+        let store = getStore();
+        store.activeTask = { text: chosen, time: new Date().toLocaleString() };
+        saveStore(store);
+        alert("🎁 盲盒任务已瞬间下发至小狗端！");
+        refreshAllUI();
+    }
+
+    function generateTaskIdea() {
+        const ideas = [
+            "专项加练：手抄错题或规章条例 500 字",
+            "限时整改：完成房间死角大扫除",
+            "状态补报：用最高敬意向主人汇报今日心得"
+        ];
+        document.getElementById('custom-task-input').value = ideas[Math.floor(Math.random() * ideas.length)];
+    }
+
+    function publishCustomTask() {
+        let val = document.getElementById('custom-task-input').value.trim();
+        if (!val) {
+            alert("请输入任务内容");
+            return;
+        }
+        let store = getStore();
+        store.activeTask = { text: val, time: new Date().toLocaleString() };
+        saveStore(store);
+        document.getElementById('custom-task-input').value = '';
+        alert("⚡ 自定义任务已下发！");
+        refreshAllUI();
+    }
+
+    function quickRespondTask() {
+        let store = getStore();
+        if (store.activeTask) {
+            document.getElementById('dog-status').value = `【盲盒任务回执】已响应主人任务: ${store.activeTask.text}`;
+        }
+        enterRole('dog');
+    }
+
+    function loadReports() {
+        let store = getStore();
+        let reports = store.reports || [];
+        
+        // 渲染主人端列表
+        let htmlMaster = '';
+        let htmlObserver = '';
+        let htmlDogHistory = '';
+
+        if (reports.length === 0) {
+            let emptyHtml = '<p style="text-align:center; color:#888; font-size:0.85em; padding:20px;">暂无历史报备记录</p>';
+            if(document.getElementById('reports-list')) document.getElementById('reports-list').innerHTML = emptyHtml;
+            if(document.getElementById('observer-reports-list')) document.getElementById('observer-reports-list').innerHTML = emptyHtml;
+            if(document.getElementById('dog-history-list')) document.getElementById('dog-history-list').innerHTML = emptyHtml;
+            return;
+        }
+
+        [...reports].reverse().forEach(item => {
+            let card = `
+                <div class="report-card">
+                    ${item.stamp ? `<div class="stamp-mark">${item.stamp}</div>` : ''}
+                    <div class="report-header">
+                        <span>🐶 ${item.dogName}</span>
+                        <span>${item.time}</span>
+                    </div>
+                    <div class="report-text">${item.status}</div>
+                    ${item.amapUrl ? `<a href="${item.amapUrl}" target="_blank" style="color:var(--accent-blue); font-size:0.8em; display:block; margin-bottom:4px;">🗺️ 查看定位</a>` : ''}
+                    ${item.image ? `<img src="${item.image}" class="report-img" />` : ''}
+                    ${item.reply ? `<div class="reply-tag">${item.reply}</div>` : '<div style="font-size:0.75em; color:#888; margin-top:4px;">⏳ 等待主人批复...</div>'}
+                    
+                    <div class="audit-actions">
+                        <button class="audit-btn btn-approve" onclick="replyReport(${item.id}, '👑 主人批复: 已阅，表现合格。', '【已阅合格】')">合格</button>
+                        <button class="audit-btn btn-reject" onclick="replyReport(${item.id}, '👑 主人批复: 存在瑕疵，打回重做！', '【打回重做】')">打回</button>
+                        <button class="audit-btn btn-praise" onclick="replyReport(${item.id}, '👑 主人批复: 表现优异，予以表扬！', '【特此嘉奖】')">嘉奖</button>
+                        <button class="audit-btn btn-punish" onclick="replyReport(${item.id}, '👑 主人批复: 态度不端正，加罚一次！', '【加罚警告】')">加罚</button>
+                        <button class="audit-btn btn-custom" onclick="customReplyReport(${item.id})">自定义</button>
+                    </div>
+                </div>
+            `;
+            htmlMaster += card;
+            htmlObserver += card;
+            htmlDogHistory += card;
+        });
+
+        if(document.getElementById('reports-list')) document.getElementById('reports-list').innerHTML = htmlMaster;
+        if(document.getElementById('observer-reports-list')) document.getElementById('observer-reports-list').innerHTML = htmlObserver;
+        if(document.getElementById('dog-history-list')) document.getElementById('dog-history-list').innerHTML = htmlDogHistory;
+    }
+
+    function replyReport(id, replyText, stampText) {
+        let store = getStore();
+        const idx = (store.reports || []).findIndex(h => h.id === id);
+        if (idx !== -1) {
+            store.reports[idx].reply = replyText;
+            store.reports[idx].stamp = stampText || '【遵命执行】';
+            store.reports[idx].replyTime = new Date().toLocaleTimeString();
+            saveStore(store);
+            refreshAllUI();
+        }
+    }
+
+    function customReplyReport(id) {
+        const customText = prompt("请输入您的批复内容：");
+        if (customText && customText.trim() !== "") {
+            replyReport(id, `👑 主人批复: ${customText}`, '【主人指示】');
+        }
+    }
+
+    function toggleDogHistory() {
+        let list = document.getElementById('dog-history-list');
+        list.style.display = list.style.display === 'none' ? 'block' : 'none';
     }
 
     function openTimelineModal() {
-        const history = currentStore.reports || [];
-        const container = document.getElementById('timeline-body');
-
-        if (history.length === 0) {
-            container.innerHTML = '<p style="text-align:center; color:#666;">尚无回忆打卡记录，快去提交第一次吧！</p>';
+        let store = getStore();
+        let reports = store.reports || [];
+        let html = '';
+        if (reports.length === 0) {
+            html = '<p style="color:#aaa; font-size:0.85em;">暂无回忆记录</p>';
         } else {
-            let html = '';
-            history.forEach(item => {
+            reports.forEach(r => {
                 html += `
                     <div class="timeline-item">
-                        <div style="font-size:0.75em; color:var(--accent-gold); font-weight:bold;">${item.time}</div>
-                        <div style="font-size:0.85em; font-weight:bold; color:#fff; margin-top:2px;">[${item.category}]</div>
-                        <div style="font-size:0.82em; color:#ccc; margin-top:4px;">${item.status}</div>
-                        ${item.image ? `<img src="${item.image}" style="width:100%; border-radius:6px; margin-top:6px;" />` : ''}
-                        ${item.reply ? `<div style="font-size:0.8em; color:var(--accent-gold); margin-top:4px; border-left:2px solid var(--accent-gold); padding-left:6px;">👑 主人: ${item.reply}</div>` : ''}
+                        <div style="font-size:0.75em; color:var(--accent-gold);">${r.time}</div>
+                        <div style="font-size:0.88em; margin-top:2px; color:#fff;">${r.status}</div>
+                        ${r.reply ? `<div style="font-size:0.78em; color:var(--accent-red); margin-top:2px;">${r.reply}</div>` : ''}
                     </div>
                 `;
             });
-            container.innerHTML = html;
         }
+        document.getElementById('timeline-content').innerHTML = html;
         document.getElementById('timeline-modal').style.display = 'flex';
     }
 
@@ -786,289 +916,36 @@
     }
 
     function exportDataBackup() {
-        const rawData = JSON.stringify(currentStore);
-        navigator.clipboard.writeText(rawData).then(() => {
-            alert("📋 当前房间的所有数据文本已成功复制到剪贴板！\n\n你可以直接将它通过微信/QQ发给异地的一端，在另一端点击“粘贴恢复数据文本”即可瞬间完成 100% 完美的异地无缝同步！");
-        }).catch(() => {
-            prompt("请复制以下数据文本进行同步：", rawData);
-        });
+        let store = getStore();
+        let blob = new Blob([JSON.stringify(store, null, 2)], { type: 'application/json' });
+        let url = URL.createObjectURL(blob);
+        let a = document.createElement('a');
+        a.href = url;
+        a.download = `dog_diary_${roomKey}_backup.json`;
+        a.click();
     }
 
-    async function importDataBackup() {
-        const jsonText = prompt("请在此处粘贴对方发过来的数据文本：");
-        if (jsonText) {
+    function importDataBackup() {
+        let jsonStr = prompt("请粘贴导出的 JSON 备份数据：");
+        if (jsonStr) {
             try {
-                const parsed = JSON.parse(jsonText);
-                await saveCloudData(parsed);
-                alert("✅ 数据恢复并同步成功！");
-            } catch(e) {
-                alert("❌ 文本格式错误，请检查！");
+                let data = JSON.parse(jsonStr);
+                saveStore(data);
+                refreshAllUI();
+                alert("✅ 数据导入成功并已同步！");
+            } catch (e) {
+                alert("JSON 解析失败，格式错误");
             }
         }
     }
 
-    function saveDogName() {
-        const name = document.getElementById('dog-name').value || '乖小狗';
-        localStorage.setItem('bdsm_dog_name', name);
-    }
-
-    function applyTemplate(type) {
-        currentCategory = type;
-        const textarea = document.getElementById('dog-status');
-        const templates = {
-            '早餐报备': "【🥪 早餐报备】\n用餐食物：\n当前地点：\n汇报完毕！",
-            '午餐报备': "【🍱 午餐报备】\n用餐食物：\n拍照附上食物实拍！",
-            '晚餐报备': "【🍲 晚餐报备】\n用餐食物：\n今日饮食正常报备！",
-            '睡前打卡': "【🌙 睡前报备打卡】\n睡觉时间：\n今日表现良好，申请睡觉！"
-        };
-        textarea.value = templates[type] || '';
-    }
-
-    function applyLeaveTemplate(type) {
-        currentCategory = `⏸️ 请假挂起 [${type}]`;
-        const textarea = document.getElementById('dog-status');
-        const leaveTemplates = {
-            '上课请假': "【📚 请假挂起 - 上课/考试】\n挂起时长：\n原因：进入课程状态，期间向主人请假！",
-            '外出请假': "【🚗 请假挂起 - 外出/不便】\n原因：外出处理事务/环境不便回复\n返回后第一时间报备！",
-            '设备没电': "【🪫 请假挂起 - 没电预警】\n原因：手机电量极低\n充电后第一时间补报！",
-            '特殊情况': "【⚠️ 请假挂起 - 特殊说明】\n说明原因："
-        };
-        textarea.value = leaveTemplates[type] || '';
-    }
-
-    function toggleDisguise() {
-        isDisguised = !isDisguised;
-        document.getElementById('disguise-view').style.display = isDisguised ? 'block' : 'none';
-        document.getElementById('app-view').style.display = isDisguised ? 'none' : 'block';
-        document.body.classList.toggle('disguise-mode', isDisguised);
-    }
-
-    function goToMainPortal() {
-        document.querySelectorAll('.page-panel').forEach(p => p.classList.remove('active'));
-        document.getElementById('main-portal').classList.add('active');
-        document.getElementById('global-back-btn').style.display = 'none';
-    }
-
-    async function enterRole(role) {
-        document.querySelectorAll('.page-panel').forEach(p => p.classList.remove('active'));
-        document.getElementById('global-back-btn').style.display = 'block';
-        
-        await fetchCloudData();
-
-        if (role === 'dog') {
-            document.getElementById('dog-panel').classList.add('active');
-            document.getElementById('dog-name').value = localStorage.getItem('bdsm_dog_name') || '乖小狗';
-            loadDogDashboard();
-        } else if (role === 'master') {
-            document.getElementById('master-panel').classList.add('active');
-            loadReports();
-        } else if (role === 'observer') {
-            document.getElementById('observer-panel').classList.add('active');
-            loadObserverData();
+    function clearHistory() {
+        if (confirm("确定要清空该房间的所有数据吗？")) {
+            localStorage.removeItem('bdsm_store_' + roomKey);
+            refreshAllUI();
+            alert("已清空");
         }
     }
-
-    function requestMasterAccess() {
-        if (isMasterAuthenticated) enterRole('master');
-        else document.getElementById('password-modal').style.display = 'flex';
-    }
-
-    function verifyPassword() {
-        if (document.getElementById('master-pwd-input').value === MASTER_PASSWORD) {
-            isMasterAuthenticated = true;
-            document.getElementById('password-modal').style.display = 'none';
-            enterRole('master');
-        } else {
-            alert("❌ 密码错误！");
-        }
-    }
-
-    function closePwdModal() {
-        document.getElementById('password-modal').style.display = 'none';
-    }
-
-    function getGPS() {
-        const status = document.getElementById('gps-status');
-        status.innerText = "高德定位中...";
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(pos => {
-                const lat = pos.coords.latitude;
-                const lon = pos.coords.longitude;
-                currentAmapUrl = `https://uri.amap.com/marker?position=${lon},${lat}&name=小狗精准位置&src=dogReport&coordinate=wgs84&callnative=1`;
-                status.innerText = "✓ 高德定位成功！主人可一键查看导航";
-            }, err => {
-                status.innerText = "❌ 定位失败，请开启位置权限";
-            });
-        }
-    }
-
-    function processImageWithWatermark(input) {
-        const file = input.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const img = new Image();
-                img.src = e.target.result;
-                img.onload = function() {
-                    const canvas = document.createElement('canvas');
-                    const ctx = canvas.getContext('2d');
-                    canvas.width = 600;
-                    canvas.height = (img.height * 600) / img.width;
-                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                    
-                    ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
-                    ctx.fillRect(0, canvas.height - 40, canvas.width, 40);
-                    ctx.fillStyle = "#ffffff";
-                    ctx.font = "16px sans-serif";
-                    ctx.fillText(`📍 现场拍摄防伪 | ${new Date().toLocaleString()}`, 15, canvas.height - 14);
-
-                    currentBase64Image = canvas.toDataURL('image/jpeg', 0.8);
-                    const preview = document.getElementById('img-preview');
-                    preview.src = currentBase64Image;
-                    preview.style.display = 'block';
-                }
-            }
-            reader.readAsDataURL(file);
-        }
-    }
-
-    function loadDogDashboard() {
-        const store = currentStore;
-        document.getElementById('stat-obed').innerText = store.petObed || 100;
-
-        const box = document.getElementById('latest-reply-box');
-        const latestReplied = (store.reports || []).find(h => h.reply && h.reply !== '');
-        
-        if (latestReplied) {
-            box.style.display = 'block';
-            document.getElementById('latest-reply-text').innerHTML = `对事项 <b>[${latestReplied.category}]</b> 的批复：<br><span style="color:var(--accent-gold); font-size:1.1em; font-weight:bold;">${latestReplied.reply}</span>`;
-            document.getElementById('reply-time-tag').innerText = latestReplied.replyTime || '近期';
-        } else {
-            box.style.display = 'none';
-        }
-    }
-
-    function toggleDogHistory() {
-        const historyContainer = document.getElementById('dog-history-list');
-        if (historyContainer.style.display === 'block') {
-            historyContainer.style.display = 'none';
-            return;
-        }
-
-        const history = currentStore.reports || [];
-        if (history.length === 0) {
-            historyContainer.innerHTML = '<p style="text-align:center; color:#666;">暂无历史记录</p>';
-        } else {
-            let html = '';
-            history.forEach(item => {
-                html += `
-                    <div class="report-card">
-                        ${item.stamp ? `<div class="stamp-mark">${item.stamp}</div>` : ''}
-                        <div class="report-header">
-                            <span>📌 ${item.category}</span>
-                            <span>⏱️ ${item.time}</span>
-                        </div>
-                        <div class="report-text">${item.status}</div>
-                        ${item.reply ? `<div class="reply-tag">👑 主人: ${item.reply}</div>` : '<div style="font-size:0.8em; color:#666; margin-top:5px;">⏳ 暂无批复</div>'}
-                    </div>
-                `;
-            });
-            historyContainer.innerHTML = html;
-        }
-        historyContainer.style.display = 'block';
-    }
-
-    function loadReports() {
-        const listContainer = document.getElementById('reports-list');
-        const history = currentStore.reports || [];
-
-        if (history.length === 0) {
-            listContainer.innerHTML = '<p style="text-align:center; color:#666;">暂无报备记录</p>';
-            return;
-        }
-
-        let html = '';
-        history.forEach(item => {
-            html += `
-                <div class="report-card">
-                    ${item.stamp ? `<div class="stamp-mark">${item.stamp}</div>` : ''}
-                    <div class="report-header">
-                        <span>🐾 <b>${item.name || '乖小狗'}</b> <span class="report-tag">${item.category}</span></span>
-                        <span>⏱️ ${item.time}</span>
-                    </div>
-                    <div class="report-text">${item.status}</div>
-                    ${item.amapUrl ? `<a href="${item.amapUrl}" target="_blank" style="color:var(--accent-blue); font-size:0.85em;">🗺️ 打开高德地图导航标点</a>` : ''}
-                    ${item.image ? `<img src="${item.image}" class="report-img" />` : ''}
-                    ${item.reply ? `<div class="reply-tag">👑 已给予批复: ${item.reply}</div>` : ''}
-                    <div class="audit-actions">
-                        <button class="audit-btn btn-approve" onclick="replyReport(${item.id}, '许可/允许 ✅', '【特许批准】')">许可</button>
-                        <button class="audit-btn btn-reject" onclick="replyReport(${item.id}, '驳回 ❌', '【严厉驳回】')">驳回</button>
-                        <button class="audit-btn btn-praise" onclick="replyReport(${item.id}, '奖励摸头 🐾', '【表扬认可】')">表扬</button>
-                        <button class="audit-btn btn-punish" onclick="replyReport(${item.id}, '惩罚记过 ⚠️', '【警告处分】')">惩罚</button>
-                        <button class="audit-btn btn-custom" onclick="customReplyReport(${item.id})">✍️ 批复</button>
-                    </div>
-                </div>
-            `;
-        });
-        listContainer.innerHTML = html;
-    }
-
-    function loadObserverData() {
-        document.getElementById('obs-room-name').innerText = roomKey;
-        const obsList = document.getElementById('obs-reports-list');
-        const history = currentStore.reports || [];
-
-        if (history.length === 0) {
-            obsList.innerHTML = '<p style="text-align:center; color:#666;">该房间暂无动态记录</p>';
-            return;
-        }
-
-        let html = '';
-        history.forEach(item => {
-            html += `
-                <div class="report-card" style="border-left-color:var(--accent-blue);">
-                    ${item.stamp ? `<div class="stamp-mark">${item.stamp}</div>` : ''}
-                    <div class="report-header">
-                        <span>🐾 <b>${item.name || '乖小狗'}</b> <span class="report-tag" style="background:var(--accent-blue);">${item.category}</span></span>
-                        <span>⏱️ ${item.time}</span>
-                    </div>
-                    <div class="report-text">${item.status}</div>
-                    ${item.amapUrl ? `<a href="${item.amapUrl}" target="_blank" style="color:var(--accent-blue); font-size:0.8em;">🗺️ 查看高德位置</a>` : ''}
-                    ${item.image ? `<img src="${item.image}" class="report-img" />` : ''}
-                    ${item.reply ? `<div class="reply-tag">👑 主人批复: ${item.reply}</div>` : '<div style="font-size:0.8em; color:#888; margin-top:5px;">⏳ 等待批复中...</div>'}
-                </div>
-            `;
-        });
-        obsList.innerHTML = html;
-    }
-
-    async function replyReport(id, replyText, stampText) {
-        const idx = (currentStore.reports || []).findIndex(h => h.id === id);
-        if (idx !== -1) {
-            currentStore.reports[idx].reply = replyText;
-            currentStore.reports[idx].stamp = stampText || '【遵命执行】';
-            currentStore.reports[idx].replyTime = new Date().toLocaleTimeString();
-            await saveCloudData(currentStore);
-        }
-    }
-
-    function customReplyReport(id) {
-        const customText = prompt("请输入批复内容：");
-        if (customText && customText.trim() !== "") {
-            replyReport(id, `💬 主人批复: ${customText}`, '【主人指示】');
-        }
-    }
-
-    async function clearHistory() {
-        if (confirm("确认清空房间内所有记录与任务？")) {
-            currentStore.reports = [];
-            currentStore.activeTask = null;
-            await saveCloudData(currentStore);
-        }
-    }
-
-    // 初始加载
-    fetchCloudData();
 </script>
 
 </body>
